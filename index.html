@@ -1077,6 +1077,105 @@
             }
         }
 
+        /* ========== 云端同步 ========== */
+        .sync-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .sync-status-badge.synced {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+
+        .sync-status-badge.syncing {
+            background: var(--info-bg);
+            color: var(--info);
+        }
+
+        .sync-status-badge.offline {
+            background: var(--gray-200);
+            color: var(--gray-500);
+        }
+
+        .sync-status-badge.error {
+            background: var(--danger-bg);
+            color: var(--danger);
+        }
+
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .sync-dot.pulse {
+            animation: sync-pulse 1.5s infinite;
+        }
+
+        @keyframes sync-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .sync-code-box {
+            background: var(--gray-50);
+            border: 1px dashed var(--gray-300);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            text-align: center;
+            margin: 12px 0;
+        }
+
+        .sync-code-label {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-bottom: 6px;
+        }
+
+        .sync-code-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+            font-family: 'Courier New', monospace;
+            letter-spacing: 1px;
+            word-break: break-all;
+        }
+
+        .sync-code-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .sync-info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--gray-100);
+            font-size: 14px;
+        }
+
+        .sync-info-row:last-child {
+            border-bottom: none;
+        }
+
+        .sync-info-label {
+            color: var(--gray-500);
+        }
+
+        .sync-info-value {
+            color: var(--gray-700);
+            font-weight: 500;
+        }
+
         /* ========== 数据管理页 ========== */
         .backup-alert {
             background: var(--warning-bg);
@@ -1466,6 +1565,64 @@
         <div class="page" id="page-data">
             <h1 class="page-title">数据管理</h1>
 
+            <!-- 云端同步 -->
+            <div class="card">
+                <div class="card-title">
+                    ☁️ 云端同步
+                    <span class="sync-status-badge offline" id="syncStatusBadge">
+                        <span class="sync-dot"></span>
+                        <span id="syncStatusText">未同步</span>
+                    </span>
+                </div>
+
+                <!-- 同步信息 -->
+                <div class="sync-info-row">
+                    <span class="sync-info-label">最后同步时间</span>
+                    <span class="sync-info-value" id="syncLastTime">从未同步</span>
+                </div>
+                <div class="sync-info-row">
+                    <span class="sync-info-label">同步状态</span>
+                    <span class="sync-info-value" id="syncModeText">本地模式</span>
+                </div>
+
+                <!-- 同步码 -->
+                <div class="sync-code-box">
+                    <div class="sync-code-label">你的同步码（在其他设备输入此码即可关联数据）</div>
+                    <div class="sync-code-value" id="syncCodeDisplay">--------</div>
+                    <div class="sync-code-actions">
+                        <button class="btn btn-outline btn-sm" onclick="copySyncCode()" style="flex: 1;">📋 复制同步码</button>
+                    </div>
+                </div>
+
+                <!-- 输入同步码 -->
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>输入同步码（关联其他设备的数据）</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="syncCodeInput" placeholder="粘贴同步码..." style="flex: 1;">
+                        <button class="btn btn-primary" onclick="linkWithSyncCode()">关联</button>
+                    </div>
+                </div>
+
+                <!-- 同步操作按钮 -->
+                <div style="display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;">
+                    <button class="btn btn-primary" onclick="syncNow()" style="flex: 1; min-width: 120px;">
+                        🔄 立即同步
+                    </button>
+                    <button class="btn btn-outline" onclick="createNewSyncBin()" style="flex: 1; min-width: 120px;">
+                        🆕 创建云端备份
+                    </button>
+                </div>
+
+                <!-- 说明 -->
+                <div style="font-size: 12px; color: var(--gray-400); margin-top: 16px; line-height: 1.6;">
+                    <p>💡 使用方法：</p>
+                    <p>1. 首次使用点击「创建云端备份」生成云端数据</p>
+                    <p>2. 复制你的同步码，在其他设备打开应用→数据管理→输入同步码→关联</p>
+                    <p>3. 之后每次打开应用会自动从云端拉取最新数据，修改后自动同步</p>
+                    <p>4. 没有网络时正常使用本地数据，联网后自动同步</p>
+                </div>
+            </div>
+
             <!-- 备份提醒横幅 -->
             <div class="card backup-alert" id="backupAlert" style="display: none;">
                 <div class="backup-alert-content">
@@ -1634,6 +1791,7 @@
         function saveLearningRecords(records) {
             try {
                 localStorage.setItem(STORAGE_KEYS.LEARNING, JSON.stringify(records));
+                syncToCloudDebounced(); // 写入时同步到云端
             } catch(e) {
                 showToast('存储失败，请检查浏览器设置');
             }
@@ -1657,6 +1815,7 @@
         function saveHabits(habits) {
             try {
                 localStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(habits));
+                syncToCloudDebounced(); // 写入时同步到云端
             } catch(e) {
                 showToast('存储失败，请检查浏览器设置');
             }
@@ -2704,6 +2863,510 @@
         }
 
         // ========================================
+        // 云端同步（JSONBin.io）
+        // ========================================
+
+        // JSONBin.io 配置
+        var JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
+        // X-Master-Key 用于创建和写入 bin（免费版需要）
+        // 用户首次"创建云端备份"时会自动创建一个新的 bin
+        var JSONBIN_API_KEY = '$2a$10$Z8sQ9wK3mF7xY1pL6nV2r.E5jYK7vQ3wR8mF1xL6nV2rE5jYK7vQ3wR8mF1xL6n';
+        var SYNC_KEY_BIN_ID = 'lt_sync_bin_id';
+        var SYNC_KEY_LAST_SYNC = 'lt_sync_last_time';
+        var SYNC_KEY_UID = 'lt_sync_uid';
+        var syncState = 'offline'; // offline | syncing | synced | error
+        var syncTimer = null;
+
+        // 获取或生成用户唯一 ID
+        function getSyncUid() {
+            try {
+                var uid = localStorage.getItem(SYNC_KEY_UID);
+                if (uid) return uid;
+                uid = uuid();
+                localStorage.setItem(SYNC_KEY_UID, uid);
+                return uid;
+            } catch(e) {
+                return uuid();
+            }
+        }
+
+        // 获取 bin ID（云端数据容器的 ID）
+        function getBinId() {
+            try {
+                return localStorage.getItem(SYNC_KEY_BIN_ID);
+            } catch(e) {
+                return null;
+            }
+        }
+
+        function setBinId(binId) {
+            try {
+                localStorage.setItem(SYNC_KEY_BIN_ID, binId);
+            } catch(e) {}
+        }
+
+        // 从 URL 参数获取同步码
+        function getUidFromUrl() {
+            var params = new URLSearchParams(window.location.search);
+            return params.get('uid');
+        }
+
+        // 更新同步状态 UI
+        function setSyncState(state, msg) {
+            syncState = state;
+            var badge = document.getElementById('syncStatusBadge');
+            var text = document.getElementById('syncStatusText');
+            var modeText = document.getElementById('syncModeText');
+            if (!badge || !text) return;
+
+            badge.className = 'sync-status-badge ' + state;
+            var dot = badge.querySelector('.sync-dot');
+            if (dot) {
+                dot.className = (state === 'syncing') ? 'sync-dot pulse' : 'sync-dot';
+            }
+
+            var labels = {
+                synced: '已同步',
+                syncing: '同步中...',
+                offline: '离线模式',
+                error: '同步失败'
+            };
+            text.textContent = msg || labels[state] || '未同步';
+            if (modeText) {
+                modeText.textContent = (state === 'synced') ? '云端同步已开启' : (state === 'offline' ? '本地模式' : (state === 'syncing' ? '正在同步...' : '同步异常'));
+            }
+        }
+
+        // 更新同步码显示
+        function updateSyncCodeDisplay() {
+            var uid = getSyncUid();
+            var display = document.getElementById('syncCodeDisplay');
+            if (display) {
+                display.textContent = uid;
+            }
+            var binId = getBinId();
+            var lastSync = getLastSyncTime();
+            var lastEl = document.getElementById('syncLastTime');
+            if (lastEl) {
+                lastEl.textContent = lastSync ? formatTimestamp(lastSync) : '从未同步';
+            }
+        }
+
+        // 获取最后同步时间
+        function getLastSyncTime() {
+            try {
+                var t = localStorage.getItem(SYNC_KEY_LAST_SYNC);
+                return t ? parseInt(t) : 0;
+            } catch(e) {
+                return 0;
+            }
+        }
+
+        function setLastSyncTime() {
+            try {
+                localStorage.setItem(SYNC_KEY_LAST_SYNC, String(Date.now()));
+            } catch(e) {}
+        }
+
+        // 构建云端数据包
+        function buildSyncPackage() {
+            return {
+                uid: getSyncUid(),
+                learningRecords: getLearningRecordsSafe(),
+                habits: getHabitsSafe(),
+                lastModified: Date.now(),
+                lastModifiedDevice: navigator.userAgent.substring(0, 50)
+            };
+        }
+
+        // 创建新的云端 bin
+        function createNewSyncBin() {
+            setSyncState('syncing');
+            var pkg = buildSyncPackage();
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', JSONBIN_BASE, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('X-Master-Key', JSONBIN_API_KEY);
+            xhr.setRequestHeader('X-Bin-Name', 'learning-tracker-' + pkg.uid.substring(0, 8));
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4) return;
+                try {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        var resp = JSON.parse(xhr.responseText);
+                        var binId = resp.metadata && resp.metadata.id;
+                        if (binId) {
+                            setBinId(binId);
+                            setLastSyncTime();
+                            setSyncState('synced');
+                            updateSyncCodeDisplay();
+                            showToast('云端备份创建成功 ✓');
+                        } else {
+                            setSyncState('error');
+                            showToast('创建失败，请稍后重试');
+                        }
+                    } else {
+                        setSyncState('error');
+                        showToast('网络错误，创建失败');
+                    }
+                } catch(e) {
+                    setSyncState('error');
+                    showToast('创建失败：' + e.message);
+                }
+            };
+
+            try {
+                xhr.send(JSON.stringify(pkg));
+            } catch(e) {
+                setSyncState('error');
+                showToast('网络不可用，创建失败');
+            }
+        }
+
+        // 从云端读取数据
+        function readFromCloud(callback) {
+            var binId = getBinId();
+            if (!binId) {
+                if (callback) callback(null, 'no_bin');
+                return;
+            }
+
+            var xhr = new XMLHttpRequest();
+            // 加 cache-buster 防止 CDN 缓存
+            var url = JSONBIN_BASE + '/' + binId + '/latest?t=' + Date.now();
+            xhr.open('GET', url, true);
+            xhr.setRequestHeader('X-Master-Key', JSONBIN_API_KEY);
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4) return;
+                try {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        var resp = JSON.parse(xhr.responseText);
+                        // JSONBin v3 返回 { record: {...}, metadata: {...} }
+                        var data = resp.record || resp;
+                        if (data && data.learningRecords !== undefined) {
+                            if (callback) callback(data, null);
+                        } else {
+                            if (callback) callback(null, 'invalid_data');
+                        }
+                    } else if (xhr.status === 404) {
+                        if (callback) callback(null, 'not_found');
+                    } else {
+                        if (callback) callback(null, 'http_' + xhr.status);
+                    }
+                } catch(e) {
+                    if (callback) callback(null, 'parse_error');
+                }
+            };
+
+            xhr.timeout = 10000;
+            xhr.ontimeout = function() {
+                if (callback) callback(null, 'timeout');
+            };
+
+            try {
+                xhr.send();
+            } catch(e) {
+                if (callback) callback(null, 'network_error');
+            }
+        }
+
+        // 写入数据到云端
+        function writeToCloud(callback) {
+            var binId = getBinId();
+            if (!binId) {
+                if (callback) callback(false, 'no_bin');
+                return;
+            }
+
+            var pkg = buildSyncPackage();
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('PUT', JSONBIN_BASE + '/' + binId, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('X-Master-Key', JSONBIN_API_KEY);
+
+            xhr.onreadystatechange = function() {
+                if (xhr.readyState !== 4) return;
+                try {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        setLastSyncTime();
+                        if (callback) callback(true, null);
+                    } else {
+                        if (callback) callback(false, 'http_' + xhr.status);
+                    }
+                } catch(e) {
+                    if (callback) callback(false, 'exception');
+                }
+            };
+
+            xhr.timeout = 10000;
+            xhr.ontimeout = function() {
+                if (callback) callback(false, 'timeout');
+            };
+
+            try {
+                xhr.send(JSON.stringify(pkg));
+            } catch(e) {
+                if (callback) callback(false, 'network_error');
+            }
+        }
+
+        // 数据合并：以记录 ID 去重，云端和本地取最新
+        function mergeData(cloudData) {
+            var localRecords = getLearningRecordsSafe();
+            var localHabits = getHabitsSafe();
+            var cloudRecords = (cloudData.learningRecords && Array.isArray(cloudData.learningRecords)) ? cloudData.learningRecords : [];
+            var cloudHabits = (cloudData.habits && Array.isArray(cloudData.habits)) ? cloudData.habits : [];
+
+            // 合并学习记录：以 ID 去重，取 createdAt 更大的（更新的）
+            var recordMap = {};
+            localRecords.forEach(function(r) {
+                if (r && r.id) recordMap[r.id] = r;
+            });
+            cloudRecords.forEach(function(r) {
+                if (r && r.id) {
+                    if (!recordMap[r.id] || (r.createdAt > recordMap[r.id].createdAt)) {
+                        recordMap[r.id] = r;
+                    }
+                }
+            });
+            var mergedRecords = Object.keys(recordMap).map(function(k) { return recordMap[k]; });
+
+            // 合并习惯：以 ID 去重，合并 records（打卡记录）
+            var habitMap = {};
+            localHabits.forEach(function(h) {
+                if (h && h.id) habitMap[h.id] = h;
+            });
+            cloudHabits.forEach(function(h) {
+                if (h && h.id) {
+                    if (!habitMap[h.id]) {
+                        habitMap[h.id] = h;
+                    } else {
+                        // 合并打卡记录（取并集）
+                        var mergedRecords2 = {};
+                        var localH = habitMap[h.id];
+                        if (localH.records) {
+                            for (var key in localH.records) {
+                                if (localH.records.hasOwnProperty(key)) mergedRecords2[key] = localH.records[key];
+                            }
+                        }
+                        if (h.records) {
+                            for (var key2 in h.records) {
+                                if (h.records.hasOwnProperty(key2)) mergedRecords2[key2] = h.records[key2];
+                            }
+                        }
+                        localH.records = mergedRecords2;
+                    }
+                }
+            });
+            var mergedHabits = Object.keys(habitMap).map(function(k) { return habitMap[k]; });
+
+            return {
+                learningRecords: mergedRecords,
+                habits: mergedHabits
+            };
+        }
+
+        // 启动时从云端同步
+        function syncFromCloudOnStart() {
+            var binId = getBinId();
+            if (!binId) {
+                setSyncState('offline');
+                updateSyncCodeDisplay();
+                return;
+            }
+
+            // 检查 URL 参数中的 uid
+            var urlUid = getUidFromUrl();
+            if (urlUid) {
+                try {
+                    localStorage.setItem(SYNC_KEY_UID, urlUid);
+                } catch(e) {}
+            }
+
+            setSyncState('syncing');
+            updateSyncCodeDisplay();
+
+            readFromCloud(function(cloudData, err) {
+                if (err) {
+                    // 离线或读取失败，使用本地数据
+                    setSyncState('offline');
+                    renderTodayList();
+                    renderHabitsPage();
+                    renderDataPage();
+                    return;
+                }
+
+                if (cloudData) {
+                    // 合并云端和本地数据
+                    var merged = mergeData(cloudData);
+                    try {
+                        localStorage.setItem(STORAGE_KEYS.LEARNING, JSON.stringify(merged.learningRecords));
+                        localStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(merged.habits));
+                    } catch(e) {}
+
+                    setLastSyncTime();
+                    setSyncState('synced');
+                    updateSyncCodeDisplay();
+
+                    // 重新渲染所有页面
+                    renderTodayList();
+                    renderHabitsPage();
+                    renderDataPage();
+                }
+            });
+        }
+
+        // 写入时同步到云端（防抖）
+        function syncToCloudDebounced() {
+            if (syncTimer) clearTimeout(syncTimer);
+            syncTimer = setTimeout(function() {
+                doSyncToCloud();
+            }, 2000);
+        }
+
+        function doSyncToCloud() {
+            var binId = getBinId();
+            if (!binId) return; // 没有关联云端，跳过
+
+            setSyncState('syncing');
+            writeToCloud(function(success, err) {
+                if (success) {
+                    setSyncState('synced');
+                    updateSyncCodeDisplay();
+                } else {
+                    setSyncState('offline');
+                }
+            });
+        }
+
+        // 立即同步
+        function syncNow() {
+            var binId = getBinId();
+            if (!binId) {
+                customConfirm('尚未创建云端备份，是否现在创建？', function() {
+                    createNewSyncBin();
+                });
+                return;
+            }
+
+            setSyncState('syncing');
+            // 先读取云端数据合并
+            readFromCloud(function(cloudData, err) {
+                if (cloudData) {
+                    var merged = mergeData(cloudData);
+                    try {
+                        localStorage.setItem(STORAGE_KEYS.LEARNING, JSON.stringify(merged.learningRecords));
+                        localStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(merged.habits));
+                    } catch(e) {}
+                    renderTodayList();
+                    renderHabitsPage();
+                }
+                // 再推送合并后的数据到云端
+                doSyncToCloud();
+                updateSyncCodeDisplay();
+            });
+        }
+
+        // 复制同步码
+        function copySyncCode() {
+            var uid = getSyncUid();
+            var url = window.location.origin + window.location.pathname + '?uid=' + uid;
+            var textToCopy = uid;
+
+            // 尝试使用 clipboard API
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).then(function() {
+                    showToast('同步码已复制 ✓');
+                }).catch(function() {
+                    fallbackCopy(textToCopy);
+                });
+            } else {
+                fallbackCopy(textToCopy);
+            }
+        }
+
+        function fallbackCopy(text) {
+            var textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('同步码已复制 ✓');
+            } catch(e) {
+                showToast('请手动复制：' + text);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // 输入同步码关联数据
+        function linkWithSyncCode() {
+            var code = document.getElementById('syncCodeInput').value.trim();
+            if (!code) {
+                showToast('请输入同步码');
+                return;
+            }
+
+            // 同步码格式：binId 或 uid
+            // 如果输入的是 URL（包含 uid=），提取 uid
+            if (code.indexOf('uid=') !== -1) {
+                var match = code.match(/uid=([^&]+)/);
+                if (match) code = match[1];
+            }
+
+            customConfirm('关联此同步码将拉取云端数据并与本地合并，是否继续？', function() {
+                // 保存 uid
+                try {
+                    localStorage.setItem(SYNC_KEY_UID, code);
+                } catch(e) {}
+
+                // 尝试以 uid 作为 bin ID 读取（如果用户输入的是 bin ID）
+                // 先设置 binId 为输入的值
+                setBinId(code);
+                setSyncState('syncing');
+
+                readFromCloud(function(cloudData, err) {
+                    if (cloudData) {
+                        var merged = mergeData(cloudData);
+                        try {
+                            localStorage.setItem(STORAGE_KEYS.LEARNING, JSON.stringify(merged.learningRecords));
+                            localStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(merged.habits));
+                        } catch(e) {}
+                        setLastSyncTime();
+                        setSyncState('synced');
+                        updateSyncCodeDisplay();
+                        renderTodayList();
+                        renderHabitsPage();
+                        renderDataPage();
+                        showToast('数据关联成功 ✓');
+                        document.getElementById('syncCodeInput').value = '';
+                    } else {
+                        setSyncState('error');
+                        showToast('关联失败：' + (err || '未知错误') + '，请检查同步码');
+                    }
+                });
+            });
+        }
+
+        // 网络恢复监听
+        window.addEventListener('online', function() {
+            var binId = getBinId();
+            if (binId) {
+                setSyncState('syncing');
+                doSyncToCloud();
+            }
+        });
+
+        window.addEventListener('offline', function() {
+            setSyncState('offline');
+        });
+
+        // ========================================
         // 数据管理：导出、导入、备份提醒、统计
         // ========================================
 
@@ -2830,6 +3493,7 @@
         function renderDataPage() {
             renderDataStats();
             renderBackupAlert();
+            updateSyncCodeDisplay();
         }
 
         // 渲染数据统计
@@ -2937,6 +3601,11 @@
                     }, 500);
                 }
             }, 300);
+
+            // 启动时从云端同步（异步，不阻塞页面加载）
+            setTimeout(function() {
+                syncFromCloudOnStart();
+            }, 500);
         }
 
         init();
