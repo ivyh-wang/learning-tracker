@@ -1617,12 +1617,16 @@
         };
 
         // 获取学习记录
+        // 返回值：数组（有数据或确实无数据）或 null（读取失败）
         function getLearningRecords() {
             try {
                 var data = localStorage.getItem(STORAGE_KEYS.LEARNING);
-                return data ? JSON.parse(data) : [];
+                if (data === null) return []; // 确实没有数据
+                var parsed = JSON.parse(data);
+                return Array.isArray(parsed) ? parsed : [];
             } catch(e) {
-                return [];
+                console.error('读取学习记录失败:', e);
+                return null; // 读取失败，返回 null 以区分"无数据"
             }
         }
 
@@ -1636,12 +1640,16 @@
         }
 
         // 获取习惯列表
+        // 返回值：数组（有数据或确实无数据）或 null（读取失败）
         function getHabits() {
             try {
                 var data = localStorage.getItem(STORAGE_KEYS.HABITS);
-                return data ? JSON.parse(data) : [];
+                if (data === null) return []; // 确实没有数据
+                var parsed = JSON.parse(data);
+                return Array.isArray(parsed) ? parsed : [];
             } catch(e) {
-                return [];
+                console.error('读取习惯数据失败:', e);
+                return null; // 读取失败，返回 null 以区分"无数据"
             }
         }
 
@@ -1820,7 +1828,7 @@
                 return false;
             }
 
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const newRecord = {
                 id: uuid(),
                 date: date,
@@ -1848,7 +1856,7 @@
 
         // 渲染今日学习列表
         function renderTodayList() {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const today = todayStr();
             const todayRecords = records.filter(r => r.date === today).sort((a, b) => b.createdAt - a.createdAt);
 
@@ -1888,7 +1896,7 @@
         // 删除学习记录
         function deleteLearningRecord(id) {
             customConfirm('确定删除这条学习记录吗？', function() {
-                var records = getLearningRecords();
+                var records = getLearningRecordsSafe();
                 records = records.filter(function(r) { return r.id !== id; });
                 saveLearningRecords(records);
                 renderTodayList();
@@ -1898,7 +1906,7 @@
 
         // 打开编辑模态框
         function openEditModal(id) {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const record = records.find(r => r.id === id);
             if (!record) return;
 
@@ -1919,7 +1927,7 @@
         // 更新学习记录
         function updateLearningRecord() {
             const id = document.getElementById('editId').value;
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const idx = records.findIndex(r => r.id === id);
             if (idx === -1) return;
 
@@ -1955,7 +1963,7 @@
 
         // 获取所有待复习项（今天或之前到期且未完成）
         function getDueReviews() {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const today = todayStr();
             const dueReviews = [];
 
@@ -1981,7 +1989,7 @@
 
         // 获取已完成的复习历史
         function getCompletedReviews() {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const completed = [];
 
             records.forEach(r => {
@@ -2004,7 +2012,7 @@
 
         // 标记复习完成
         function markReviewComplete(recordId, stage) {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const record = records.find(r => r.id === recordId);
             if (!record) return;
 
@@ -2166,7 +2174,7 @@
 
         // 渲染统计卡片
         function renderStats() {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const today = new Date();
             const weekDates = getWeekDates();
 
@@ -2207,7 +2215,7 @@
 
         // 每周学习情况 - 柱状图
         function renderWeeklyChart() {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const weekDates = getWeekDates();
             const dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 
@@ -2278,7 +2286,7 @@
 
         // 每月学习情况 - 折线图
         function renderMonthlyChart() {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const recentDates = getRecentDates(30);
 
             const data = recentDates.map(date => {
@@ -2344,7 +2352,7 @@
 
         // 每季度学习情况 - 环形图
         function renderQuarterlyChart() {
-            const records = getLearningRecords();
+            const records = getLearningRecordsSafe();
             const now = new Date();
             const quarterStartMonth = getQuarterStartMonth();
 
@@ -2446,9 +2454,28 @@
             { id: uuid(), name: '冥想', target: '10分钟', icon: '🧘', color: '#8b5cf6', records: {} }
         ];
 
-        // 初始化默认习惯（仅首次）
+        // 安全获取习惯列表（永远返回数组，null 时返回空数组但不触发初始化）
+        function getHabitsSafe() {
+            var habits = getHabits();
+            return (habits === null) ? [] : habits;
+        }
+
+        // 安全获取学习记录（永远返回数组）
+        function getLearningRecordsSafe() {
+            var records = getLearningRecords();
+            return (records === null) ? [] : records;
+        }
+
+        // 初始化默认习惯（仅首次，且仅当确实没有数据时）
         function initDefaultHabits() {
-            if (getHabits().length === 0) {
+            var habits = getHabits();
+            // habits === null 表示读取失败，绝对不能覆盖
+            if (habits === null) {
+                console.warn('习惯数据读取失败，跳过初始化以防覆盖');
+                return;
+            }
+            // 仅当确实没有数据时才写入默认值
+            if (habits.length === 0) {
                 saveHabits(DEFAULT_HABITS);
             }
         }
@@ -2465,7 +2492,7 @@
                 return;
             }
 
-            const habits = getHabits();
+            const habits = getHabitsSafe();
             habits.push({
                 id: uuid(),
                 name: name,
@@ -2488,7 +2515,7 @@
         // 删除习惯
         function deleteHabit(id) {
             customConfirm('确定删除这个习惯吗？', function() {
-                var habits = getHabits();
+                var habits = getHabitsSafe();
                 habits = habits.filter(function(h) { return h.id !== id; });
                 saveHabits(habits);
                 renderHabitsPage();
@@ -2498,8 +2525,11 @@
 
         // 打卡/取消打卡
         function toggleHabitCheck(id) {
-            const habits = getHabits();
-            const habit = habits.find(h => h.id === id);
+            var habits = getHabitsSafe();
+            var habit = null;
+            for (var i = 0; i < habits.length; i++) {
+                if (habits[i].id === id) { habit = habits[i]; break; }
+            }
             if (!habit) return;
 
             const today = todayStr();
@@ -2539,7 +2569,7 @@
 
         // 渲染习惯列表
         function renderHabitList() {
-            const habits = getHabits();
+            const habits = getHabitsSafe();
             const today = todayStr();
             const container = document.getElementById('habitsGrid');
 
@@ -2582,7 +2612,7 @@
 
         // 渲染周历视图
         function renderWeekCalendar() {
-            const habits = getHabits();
+            const habits = getHabitsSafe();
             const weekDates = getWeekDates();
             const dayNames = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
             const today = todayStr();
@@ -2634,7 +2664,7 @@
 
         // 渲染习惯完成率
         function renderHabitCompletion() {
-            const habits = getHabits();
+            const habits = getHabitsSafe();
             const weekDates = getWeekDates();
             const container = document.getElementById('habitCompletion');
 
@@ -2714,8 +2744,8 @@
                 appVersion: '1.0',
                 exportDate: todayStr(),
                 exportTimestamp: Date.now(),
-                learningRecords: getLearningRecords(),
-                habits: getHabits()
+                learningRecords: getLearningRecordsSafe(),
+                habits: getHabitsSafe()
             };
 
             var jsonStr = JSON.stringify(backupData, null, 2);
@@ -2804,8 +2834,8 @@
 
         // 渲染数据统计
         function renderDataStats() {
-            var records = getLearningRecords();
-            var habits = getHabits();
+            var records = getLearningRecordsSafe();
+            var habits = getHabitsSafe();
             var lastBackup = getLastBackupTime();
 
             // 计算打卡总数
